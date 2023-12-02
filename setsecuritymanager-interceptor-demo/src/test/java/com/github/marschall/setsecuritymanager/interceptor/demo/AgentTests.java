@@ -6,7 +6,7 @@ class AgentTests {
 
   @Test
   void setSecurityManager() {
-    System.setSecurityManager(new CustomSecurityManager());
+    System.setSecurityManager(null);
   }
 
 }

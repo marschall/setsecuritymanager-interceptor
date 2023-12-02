@@ -3,23 +3,37 @@ package com.github.marschall.setsecuritymanager.interceptor.agent;
 import static net.bytebuddy.matcher.ElementMatchers.is;
 import static net.bytebuddy.matcher.ElementMatchers.not;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 import net.bytebuddy.agent.builder.AgentBuilder;
 import net.bytebuddy.agent.builder.ResettableClassFileTransformer;
 import net.bytebuddy.description.type.TypeDescription;
+import net.bytebuddy.dynamic.ClassFileLocator;
 import net.bytebuddy.dynamic.DynamicType;
+import net.bytebuddy.dynamic.loading.ClassInjector;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.SuperMethodCall;
 import net.bytebuddy.utility.JavaModule;
 
-
 public class Agent {
 
   public static void premain(String arguments, Instrumentation instrumentation) {
+//    Map<TypeDescription, byte[]> map = new HashMap<>();
+    Map<TypeDescription, byte[]> classesToInject = Collections.singletonMap(new TypeDescription.ForLoadedType(SetSecurityManagerTracer.class),
+        ClassFileLocator.ForClassLoader.read(SetSecurityManagerTracer.class));
+//    File temp = Files.createTempDirectory("tmp").toFile();
+//    ClassInjector.UsingInstrumentation.of(temp, ClassInjector.UsingInstrumentation.Target.BOOTSTRAP, instrumentation).inject(map);
+    ClassInjector.UsingUnsafe.ofBootLoader().inject(classesToInject);
     new AgentBuilder.Default()
 //      .with(AgentBuilder.TypeStrategy.Default.REDEFINE)
       // by default system classes are ignored
@@ -122,6 +136,36 @@ public class Agent {
       
     }
     
+    
+  }
+  
+  private static final class TracerInjector implements ClassFileLocator {
+
+    @Override
+    public void close() throws IOException {
+      // TODO Auto-generated method stub
+      
+    }
+
+    @Override
+    public Resolution locate(String name) throws IOException {
+      if (name.equals(SetSecurityManagerTracer.class.getName())) {
+        String classFileName = SetSecurityManagerTracer.class.getName() + CLASS_FILE_EXTENSION;
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        try (InputStream inputStream = Agent.class.getClassLoader().getResourceAsStream(classFileName)) {
+          byte[] buffer = new byte[1024];
+          int read = inputStream.read(buffer);
+          while (read != -1) {
+            byteArrayOutputStream.write(buffer, 0, read);
+            read = inputStream.read(buffer);
+            
+          }
+        }
+        return new Resolution.Explicit(byteArrayOutputStream.toByteArray());
+      } else {
+        return new Resolution.Illegal(name);
+      }
+    }
     
   }
 
